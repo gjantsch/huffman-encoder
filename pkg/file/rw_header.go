@@ -3,25 +3,24 @@ package file
 import (
 	"fmt"
 	"os"
-	"strings"
+	"slices"
 
 	"github.com/gjantsch/huffman/pkg/htree"
 )
 
-// Header Structure:
-// - 0: byte with number of codes
-// Entries:
-// - 0: byte with simbol
-// - 1: code len
-// - n: encoded byte
+// Header structure:
+// - 1 byte: number of entries
+// Per entry, sorted by (code length, symbol value):
+// - 1 byte: symbol
+// - 1 byte: code length in bits
+// Canonical codes are reconstructed from lengths on read.
 func WriteHeader(f *os.File, m map[byte]htree.Code) error {
-
 	numEntries := len(m)
 	if numEntries == 0 {
 		return fmt.Errorf("no entries on the header")
 	}
 	if numEntries > 255 {
-		return fmt.Errorf("nun entries > 255")
+		return fmt.Errorf("num entries > 255")
 	}
 
 	_, err := f.Write([]byte{byte(numEntries)})
@@ -29,9 +28,16 @@ func WriteHeader(f *os.File, m map[byte]htree.Code) error {
 		return fmt.Errorf("error writing header number of entries: %v", err)
 	}
 
-	for _, code := range m {
-		entry := append([]byte{code.Symbol, byte(len(code.Code))}, code.ToBytes()...)
-		_, err := f.Write(entry)
+	ordered := htree.SortCodes(m)
+	slices.SortStableFunc(ordered, func(a, b htree.Code) int {
+		if len(a.Code) != len(b.Code) {
+			return len(a.Code) - len(b.Code)
+		}
+		return int(a.Symbol) - int(b.Symbol)
+	})
+
+	for _, code := range ordered {
+		_, err := f.Write([]byte{code.Symbol, byte(len(code.Code))})
 		if err != nil {
 			return fmt.Errorf("error writing header symbols: %v", err)
 		}
@@ -47,44 +53,35 @@ func ReadHeader(f *os.File) (map[string]htree.Code, error) {
 	}
 
 	numEntries := int(data[0])
-	// validate num entries
 	if numEntries <= 0 {
 		return nil, fmt.Errorf("no entries")
 	}
 
-	// code array to be returned
+	type entry struct {
+		symbol byte
+		length int
+	}
+	entries := make([]entry, numEntries)
+	for i := range entries {
+		pair := []byte{0, 0}
+		_, err := f.Read(pair)
+		if err != nil {
+			return nil, fmt.Errorf("error reading codes: %v", err)
+		}
+		entries[i] = entry{symbol: pair[0], length: int(pair[1])}
+	}
+
+	// Reconstruct canonical codes from sorted (length, symbol) entries.
+	// Uses the same assignment algorithm as CanonicalCodes in htree.
 	codes := make(map[string]htree.Code, numEntries)
-
-	// read header
-	for i := 0; i < int(numEntries); i++ {
-
-		entry := []byte{0x0, 0x0}
-		_, err := f.Read(entry)
-		if err != nil {
-			return nil, fmt.Errorf("error reading codes: %v", err)
-		}
-
-		symbol := entry[0]
-		codeLength := int(entry[1])
-		realCodeLen := htree.RealCodeLength(int(entry[1]))
-		codeLenBytes := htree.QtdBytesFromCodeLength(realCodeLen)
-
-		codeBytes := make([]byte, codeLenBytes)
-		_, err = f.Read(codeBytes)
-		if err != nil {
-			return nil, fmt.Errorf("error reading codes: %v", err)
-		}
-
-		code := ""
-		for _, b := range codeBytes {
-			binary := fmt.Sprintf("%b", b)
-			if len(binary) < 8 {
-				binary = strings.Repeat("0", 8-len(binary)) + binary
-			}
-			code += binary
-		}
-		code = code[0:codeLength]
-		codes[code] = htree.Code{Symbol: symbol, Code: code}
+	code := 0
+	prevLen := 0
+	for _, e := range entries {
+		code <<= (e.length - prevLen)
+		bits := fmt.Sprintf("%0*b", e.length, code)
+		codes[bits] = htree.Code{Symbol: e.symbol, Code: bits}
+		code++
+		prevLen = e.length
 	}
 
 	return codes, nil

@@ -54,7 +54,7 @@ func Compress(inputFile, outpuFile string, verboseMode bool) {
 		return
 	}
 
-	codesMap := htree.BuildCodes(nodes[len(nodes)-1])
+	codesMap := htree.CanonicalCodes(htree.BuildCodes(nodes[len(nodes)-1]))
 
 	if verboseMode {
 		fmt.Printf("Content size: %d\n", parsedFile.FileSize)
@@ -115,5 +115,5 @@ func Decompress(inputFile string) {
 		return
 	}
 
-	fmt.Println(decoded)
+	fmt.Print(decoded)
 }

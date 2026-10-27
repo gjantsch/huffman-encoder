@@ -80,7 +80,7 @@ func ReadContent(f *os.File, codes map[string]htree.Code) (string, error) {
 	for {
 		buffer := make([]byte, 1024)
 		bytesRead, err := f.Read(buffer)
-		if err != io.EOF {
+		if err == io.EOF {
 			break
 		}
 		if err != nil {
@@ -97,7 +97,7 @@ func ReadContent(f *os.File, codes map[string]htree.Code) (string, error) {
 		val, ok := codes[code[s:p]]
 		if ok {
 			s = p
-			contentBuilder.WriteString(string(val.Symbol))
+			contentBuilder.WriteByte(val.Symbol)
 		}
 		if (p - s) > maxlen {
 			return "", fmt.Errorf("corrupted content")

@@ -12,13 +12,10 @@ type Code struct {
 	Code   string
 }
 
-// Get a random length string of 0s and 1s and convert to an array
-// of bytes.
-// Return the array of bytes and the number of 0 bits added to the
-// end to complete a full 8 byte if needed.
+// BinaryStringToByteArray converts a string of '0'/'1' characters to bytes,
+// padding the last byte with trailing zeros if needed.
+// Returns the bytes, the number of padding bits added, and any error.
 func BinaryStringToByteArray(binaryAsString string) ([]byte, int, error) {
-	// find how many bytes will be generated and create
-	// the array
 	inputLength := len(binaryAsString)
 	bytesToGenerate := inputLength / 8
 	if inputLength%8 > 0 {
@@ -27,7 +24,6 @@ func BinaryStringToByteArray(binaryAsString string) ([]byte, int, error) {
 	generatedBytes := make([]byte, bytesToGenerate)
 	padding := 0
 
-	// fill the array of bytes
 	for i := 0; i < bytesToGenerate; i++ {
 		start := i * 8
 		end := start + 8
@@ -36,7 +32,6 @@ func BinaryStringToByteArray(binaryAsString string) ([]byte, int, error) {
 		}
 		eightBits := binaryAsString[start:end]
 		if len(eightBits) < 8 {
-			// pad right with zeros
 			padding = 8 - len(eightBits)
 			eightBits += strings.Repeat("0", padding)
 		}
@@ -47,42 +42,6 @@ func BinaryStringToByteArray(binaryAsString string) ([]byte, int, error) {
 		generatedBytes[i] = byte(val)
 	}
 	return generatedBytes, padding, nil
-}
-
-func RealCodeLength(codeLength int) int {
-	// code length
-	if codeLength == 0 {
-		return 0
-	}
-
-	// we need the real final length that is a multiple of 8
-	remainder := (codeLength - 1) % 8
-	return codeLength + 8 - remainder - 1
-}
-
-func QtdBytesFromCodeLength(codeLength int) int {
-	return codeLength / 8
-}
-func (c *Code) ToBytes() []byte {
-	codeLength := len(c.Code)
-	realLength := RealCodeLength(codeLength)
-
-	// how many bytes needed to store?
-	bytes := QtdBytesFromCodeLength(realLength)
-	data := make([]byte, bytes)
-
-	// need to pad the codes with zeros
-	fullCode := c.Code + strings.Repeat("0", realLength-codeLength)
-
-	// split the binary chunks
-	for i := 0; i < bytes; i++ {
-		start := i * 8
-		end := start + 8
-		chunk := fullCode[start:end]
-		val, _ := strconv.ParseUint(chunk, 2, 8)
-		data[i] = byte(val)
-	}
-	return data
 }
 
 var codes map[byte]Code
@@ -117,4 +76,31 @@ func SortCodes(m map[byte]Code) []Code {
 		return len(a.Code) - len(b.Code)
 	})
 	return ordered
+}
+
+// CanonicalCodes converts arbitrary Huffman codes to canonical form.
+// Canonical codes preserve code lengths but assign bit patterns
+// deterministically by sorting symbols by (length, symbol value).
+// This allows the header to store only lengths, not actual bit patterns.
+func CanonicalCodes(m map[byte]Code) map[byte]Code {
+	ordered := SortCodes(m)
+	slices.SortStableFunc(ordered, func(a, b Code) int {
+		if len(a.Code) != len(b.Code) {
+			return len(a.Code) - len(b.Code)
+		}
+		return int(a.Symbol) - int(b.Symbol)
+	})
+
+	canonical := make(map[byte]Code, len(m))
+	code := 0
+	prevLen := 0
+	for _, c := range ordered {
+		curLen := len(c.Code)
+		code <<= (curLen - prevLen)
+		bits := fmt.Sprintf("%0*b", curLen, code)
+		canonical[c.Symbol] = Code{Symbol: c.Symbol, Code: bits}
+		code++
+		prevLen = curLen
+	}
+	return canonical
 }
