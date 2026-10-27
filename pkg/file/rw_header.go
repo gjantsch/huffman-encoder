@@ -20,8 +20,8 @@ func WriteHeader(f *os.File, m map[byte]htree.Code) error {
 	if numEntries == 0 {
 		return fmt.Errorf("no entries on the header")
 	}
-	if numEntries > 256 {
-		return fmt.Errorf("nun entries > 256")
+	if numEntries > 255 {
+		return fmt.Errorf("nun entries > 255")
 	}
 
 	_, err := f.Write([]byte{byte(numEntries)})

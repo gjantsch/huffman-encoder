@@ -43,21 +43,6 @@ func BuildSortedNodesArray(m map[byte]int) []*Node {
 	return nodeArray
 }
 
-func Compact(nodeArray []*Node) {
-	end := len(nodeArray) - 1
-	if end < 0 {
-		return
-	}
-
-	// find first non null item
-	c := 0
-	for nodeArray[c] == nil && c < end {
-		c++
-	}
-
-	nodeArray = nodeArray[c:]
-}
-
 // Lookup for the first non nil element of the array
 func FirstNonNilElement(nodeArray []*Node) int {
 	end := len(nodeArray) - 1
@@ -65,7 +50,7 @@ func FirstNonNilElement(nodeArray []*Node) int {
 		return 0
 	}
 	c := 0
-	for nodeArray[c] == nil {
+	for nodeArray[c] == nil && c < end {
 		c++
 	}
 	return c
@@ -78,9 +63,10 @@ func JoinNodesWithSameValue(nodeArray []*Node) {
 	if end < 0 {
 		return
 	}
-	c := FirstNonNilElement(nodeArray)
+
 	joined := true
 	for joined {
+		c := FirstNonNilElement(nodeArray)
 		joined = false
 		for c < end {
 			// if c<0 there is c and a next item n

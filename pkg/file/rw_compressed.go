@@ -1,8 +1,10 @@
 package file
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/gjantsch/huffman/pkg/htree"
@@ -50,7 +52,6 @@ func WriteContent(f *os.File, content []byte, codes map[byte]htree.Code) error {
 			return fmt.Errorf("error writting: %v", err)
 		}
 	}
-	fmt.Println()
 	return nil
 }
 
@@ -63,7 +64,6 @@ func ReadContent(f *os.File, codes map[string]htree.Code) (string, error) {
 	}
 
 	contentLength := binary.BigEndian.Uint64(contentLenghtBytes)
-	content := ""
 	minlen := 255
 	maxlen := 0
 	for k := range codes {
@@ -76,29 +76,33 @@ func ReadContent(f *os.File, codes map[string]htree.Code) (string, error) {
 		}
 	}
 
-	code := ""
+	var codeBuilder, contentBuilder bytes.Buffer
 	for {
 		buffer := make([]byte, 1024)
 		bytesRead, err := f.Read(buffer)
-		if err != nil {
+		if err != io.EOF {
 			break
 		}
+		if err != nil {
+			return "", fmt.Errorf("error reading content: %v", err)
+		}
 		for _, r := range buffer[:bytesRead] {
-			code += fmt.Sprintf("%08b", r)
+			codeBuilder.WriteString(fmt.Sprintf("%08b", r))
 		}
 	}
 
 	s := 0
-	for p := minlen; p < len(code) && len(content) < int(contentLength); p++ {
+	code := codeBuilder.String()
+	for p := minlen; p < len(code) && contentBuilder.Len() < int(contentLength); p++ {
 		val, ok := codes[code[s:p]]
 		if ok {
 			s = p
-			content += string(val.Symbol)
+			contentBuilder.WriteString(string(val.Symbol))
 		}
 		if (p - s) > maxlen {
 			return "", fmt.Errorf("corrupted content")
 		}
 	}
 
-	return content, nil
+	return contentBuilder.String(), nil
 }

@@ -14,20 +14,20 @@ func main() {
 	var input = flag.String("i", "", "Input file.")
 	var output = flag.String("o", "", "Output file.")
 	var decompress = flag.String("d", "", "File to decompress.")
-	//var verbose = flag.Bool("v", true, "Verbose mode.")
+	var verbose = flag.Bool("v", false, "Verbose mode.")
 	flag.Parse()
 
 	inputFile := *input
-	outpuFile := *output
+	outputFile := *output
 	decompressFile := *decompress
-	verboseMode := false
+	verboseMode := *verbose
 
-	if outpuFile == "" {
-		outpuFile = outpuFile + ".uf"
+	if outputFile == "" {
+		outputFile = inputFile + ".uf"
 	}
 
 	if inputFile != "" {
-		Compress(inputFile, outpuFile, verboseMode)
+		Compress(inputFile, outputFile, verboseMode)
 	}
 
 	if decompressFile != "" {
@@ -94,7 +94,6 @@ func Compress(inputFile, outpuFile string, verboseMode bool) {
 	if err != nil {
 		fmt.Println("Error writting content", err)
 	}
-	f.Close()
 }
 
 func Decompress(inputFile string) {
@@ -107,13 +106,14 @@ func Decompress(inputFile string) {
 	readHeader, err := file.ReadHeader(f)
 	if err != nil {
 		fmt.Printf("failed to read header: %v", err)
+		return
 	}
 
 	decoded, err := file.ReadContent(f, readHeader)
 	if err != nil {
 		fmt.Printf("fail to decode content: %v", err)
+		return
 	}
 
 	fmt.Println(decoded)
-	f.Close()
 }
